@@ -6,7 +6,8 @@
 //   name: string (1–70 chars)
 //   ownerUid: string (immutable creator UID)
 //   inviteCode: string (36 lowercase hex chars)
-//   memberUids: list<string> (up to 100; absent on legacy groups)
+//   memberUids: list<string> (up to 100 authenticated members)
+//   participantIds: list<string> (up to 100 participants, including offline guests)
 //   createdAt: timestamp
 //
 // groups/{groupId}/members/{uid}
@@ -15,8 +16,12 @@
 //   joinedAt: timestamp
 //   inviteCode: string matching the parent group
 //
+// groups/{groupId}/participants/{participantId}
+//   name: string (1–50 chars), createdBy: authenticated UID, createdAt: timestamp
+//   linkedUid: optional authenticated UID for a self-joined participant
+//
 // groups/{groupId}/expenses/{expenseId}
-//   paidBy: authenticated member UID
+//   paidBy: participant ID selected by a category member
 //   amount: number (> 0 and <= 100,000,000)
 //   description: string (1–100 chars)
 //   splitWith: map keyed by member UID, with one entry per selected participant; adjustable by any member
@@ -48,7 +53,7 @@ service cloud.firestore {
 
     function isValidGroup(data) {
       return data.keys().hasAll(['name', 'ownerUid', 'inviteCode', 'createdAt']) &&
-        data.keys().hasOnly(['name', 'ownerUid', 'ownerName', 'inviteCode', 'memberUids', 'createdAt']) &&
+        data.keys().hasOnly(['name', 'ownerUid', 'ownerName', 'inviteCode', 'memberUids', 'participantIds', 'createdAt']) &&
         data.name is string && data.name.size() > 0 && data.name.size() <= 70 &&
         data.ownerUid is string &&
         data.inviteCode is string && data.inviteCode.matches('^[a-f0-9]{36}$') &&
@@ -56,7 +61,9 @@ service cloud.firestore {
         (!('ownerName' in data) ||
           (data.ownerName is string && data.ownerName.size() > 0 && data.ownerName.size() <= 50)) &&
         (!('memberUids' in data) ||
-          (data.memberUids is list && data.memberUids.size() <= 100));
+          (data.memberUids is list && data.memberUids.size() <= 100)) &&
+        (!('participantIds' in data) ||
+          (data.participantIds is list && data.participantIds.size() <= 100));
     }
 
     function isValidMember(data, uid) {
@@ -68,6 +75,21 @@ service cloud.firestore {
         data.inviteCode is string && data.inviteCode.matches('^[a-f0-9]{36}$');
     }
 
+    function isValidParticipant(data, participantId) {
+      return data.keys().hasAll(['name', 'createdBy', 'createdAt']) &&
+        data.keys().hasOnly(['name', 'createdBy', 'createdAt', 'linkedUid']) &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 50 &&
+        data.createdBy == request.auth.uid &&
+        data.createdAt is timestamp &&
+        (!('linkedUid' in data) ||
+          (data.linkedUid is string && data.linkedUid == participantId));
+    }
+
+    function isMemberAfter(groupId) {
+      return isMember(groupId) ||
+        existsAfter(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
+    }
+
     function isValidExpense(data, groupId) {
       return data.keys().hasAll(['paidBy', 'amount', 'description', 'splitWith', 'createdBy', 'createdAt']) &&
         data.keys().hasOnly(['paidBy', 'amount', 'description', 'splitWith', 'createdBy', 'createdAt']) &&
@@ -77,24 +99,48 @@ service cloud.firestore {
         data.createdBy is string && data.createdAt is timestamp &&
         data.splitWith is map &&
         data.splitWith.keys().size() > 0 && data.splitWith.keys().size() <= 100 &&
+        get(/databases/$(database)/documents/groups/$(groupId)).data.participantIds.hasAny([data.paidBy]) &&
         data.splitWith.keys().hasOnly(
-          get(/databases/$(database)/documents/groups/$(groupId)).data.memberUids
+          get(/databases/$(database)/documents/groups/$(groupId)).data.participantIds
         );
     }
 
     function isJoining(groupId) {
       return signedIn() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids']) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids', 'participantIds']) &&
         request.resource.data.memberUids is list &&
-        request.resource.data.memberUids.size() ==
-          (('memberUids' in resource.data) ? resource.data.memberUids.size() : 0) + 1 &&
-        (!('memberUids' in resource.data) ||
-          request.resource.data.memberUids.hasAll(resource.data.memberUids)) &&
+        request.resource.data.participantIds is list &&
+        request.resource.data.memberUids.size() == resource.data.memberUids.size() + 1 &&
+        request.resource.data.participantIds.size() == resource.data.participantIds.size() + 1 &&
+        request.resource.data.memberUids.hasAll(resource.data.memberUids) &&
+        request.resource.data.participantIds.hasAll(resource.data.participantIds) &&
         request.resource.data.memberUids.hasAny([request.auth.uid]) &&
-        (!('memberUids' in resource.data) ||
-          !resource.data.memberUids.hasAny([request.auth.uid])) &&
+        request.resource.data.participantIds.hasAny([request.auth.uid]) &&
+        !resource.data.memberUids.hasAny([request.auth.uid]) &&
+        !resource.data.participantIds.hasAny([request.auth.uid]) &&
         getAfter(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.uid == request.auth.uid &&
         getAfter(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.inviteCode == resource.data.inviteCode &&
+        getAfter(/databases/$(database)/documents/groups/$(groupId)/participants/$(request.auth.uid)).data.linkedUid == request.auth.uid &&
+        isValidGroup(request.resource.data);
+    }
+
+    function isAddingParticipant(groupId) {
+      let newId = request.resource.data.participantIds[resource.data.participantIds.size()];
+      return isMember(groupId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participantIds']) &&
+        request.resource.data.participantIds is list &&
+        request.resource.data.participantIds.size() == resource.data.participantIds.size() + 1 &&
+        request.resource.data.participantIds.hasAll(resource.data.participantIds) &&
+        getAfter(/databases/$(database)/documents/groups/$(groupId)/participants/$(newId)).data.createdBy == request.auth.uid &&
+        isValidGroup(request.resource.data);
+    }
+
+    function isMigratingParticipantRoster(groupId) {
+      return isMember(groupId) &&
+        !('participantIds' in resource.data) &&
+        resource.data.memberUids is list &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participantIds']) &&
+        request.resource.data.participantIds == resource.data.memberUids &&
         isValidGroup(request.resource.data);
     }
 
@@ -102,6 +148,7 @@ service cloud.firestore {
       allow create: if signedIn() &&
         request.resource.data.ownerUid == request.auth.uid &&
         request.resource.data.memberUids == [] &&
+        request.resource.data.participantIds == [] &&
         isValidGroup(request.resource.data);
 
       allow get: if isMember(groupId) || isGroupOwner(groupId);
@@ -112,7 +159,7 @@ service cloud.firestore {
           request.resource.data.ownerUid == resource.data.ownerUid &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']) &&
           isValidGroup(request.resource.data)
-        ) || isJoining(groupId);
+        ) || isJoining(groupId) || isAddingParticipant(groupId) || isMigratingParticipantRoster(groupId);
       allow delete: if isGroupOwner(groupId);
 
       match /members/{uid} {
@@ -130,11 +177,18 @@ service cloud.firestore {
         allow delete: if isGroupOwner(groupId);
       }
 
+      match /participants/{participantId} {
+        allow get, list: if isMember(groupId) || isGroupOwner(groupId);
+        allow create: if isMemberAfter(groupId) &&
+          isValidParticipant(request.resource.data, participantId);
+        allow update: if false;
+        allow delete: if isGroupOwner(groupId);
+      }
+
       match /expenses/{expenseId} {
         allow get, list: if isMember(groupId) || isGroupOwner(groupId);
         allow create: if isMember(groupId) &&
           request.resource.data.createdBy == request.auth.uid &&
-          request.resource.data.paidBy == request.auth.uid &&
           isValidExpense(request.resource.data, groupId);
         allow update: if isMember(groupId) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['splitWith']) &&
