@@ -19,7 +19,7 @@
 //   paidBy: authenticated member UID
 //   amount: number (> 0 and <= 100,000,000)
 //   description: string (1–100 chars)
-//   splitWith: map keyed by member UID, with one entry per selected participant
+//   splitWith: map keyed by member UID, with one entry per selected participant; adjustable by any member
 //   createdBy: authenticated UID
 //   createdAt: timestamp
 //
@@ -71,7 +71,7 @@ service cloud.firestore {
     function isValidExpense(data, groupId) {
       return data.keys().hasAll(['paidBy', 'amount', 'description', 'splitWith', 'createdBy', 'createdAt']) &&
         data.keys().hasOnly(['paidBy', 'amount', 'description', 'splitWith', 'createdBy', 'createdAt']) &&
-        data.paidBy is string && data.paidBy == request.auth.uid &&
+        data.paidBy is string && data.paidBy.size() > 0 && data.paidBy.size() <= 128 &&
         data.amount is number && data.amount > 0 && data.amount <= 100000000 &&
         data.description is string && data.description.size() > 0 && data.description.size() <= 100 &&
         data.createdBy is string && data.createdAt is timestamp &&
@@ -126,13 +126,17 @@ service cloud.firestore {
           request.resource.data.inviteCode ==
             get(/databases/$(database)/documents/groups/$(groupId)).data.inviteCode;
 
-        allow update, delete: if false;
+        allow update: if isMember(groupId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['splitWith']) &&
+          isValidExpense(request.resource.data, groupId);
+        allow delete: if false;
       }
 
       match /expenses/{expenseId} {
         allow get, list: if isMember(groupId);
         allow create: if isMember(groupId) &&
           request.resource.data.createdBy == request.auth.uid &&
+          request.resource.data.paidBy == request.auth.uid &&
           isValidExpense(request.resource.data, groupId);
         allow update, delete: if false;
       }
