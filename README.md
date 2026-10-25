@@ -8,7 +8,9 @@ A mobile-friendly shared expense splitting website built with HTML, CSS, JavaScr
 - Real-time expense updates across devices.
 - Create a category without assigning one person as its owner.
 - Each participant joins with their own name, including people who have not spent anything.
-- Participants record their own expenses and choose everyone or selected people to split each expense with.
+- Participants record their own expenses; new expenses start split equally across everyone already joined.
+- Adjust the people sharing any expense later from its row in the Expenses tab, including participants who joined afterward and have spent nothing.
+- Calculate who pays whom and how much from each expense's selected participants.
 - Calculate who pays whom and how much from each expense's selected participants.
 
 ## Firebase backend
@@ -53,7 +55,7 @@ The live site will be available at [https://splitmate-8ce1a.web.app](https://spl
 After deployment, open the URL and create a category. Share its invite link with participants, then add an expense to confirm the live updates.
 
 ## Current MVP limitations
-- Each expense is split equally among the people selected for that expense. The default is everyone in the category.
+- Each expense is split equally among the people selected for that expense. New expenses default to everyone who has joined when they are added; adjust the selection in Expenses afterward.
 - Participant names are user-entered display names tied to anonymous browser accounts; they are not verified identities.
 - Settlement suggestions are calculated; no payments are processed.
 - Expense edit/delete and settlement confirmation are not implemented yet.
