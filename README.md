@@ -6,8 +6,10 @@ A mobile-friendly shared expense splitting website built with HTML, CSS, JavaScr
 - Create categories such as Party, Trip or Birthday.
 - Invite people with a category link.
 - Real-time expense updates across devices.
-- Record payer, description and amount in INR.
-- Calculate suggested transfers from expenses and group members.
+- Create a category without assigning one person as its owner.
+- Each participant joins with their own name, including people who have not spent anything.
+- Participants record their own expenses and choose everyone or selected people to split each expense with.
+- Calculate who pays whom and how much from each expense's selected participants.
 
 ## Firebase backend
 
@@ -17,7 +19,7 @@ Cloud Firestore uses the Standard edition and default database in Mumbai (`asia-
 
 ### Firestore security rules
 
-The rules are in `firestore.rules`. They allow a signed-in user to read their own membership record before joining, validate the invite code when creating membership, and allow access to group data only after membership is established. Expenses are readable and creatable by members; unsupported expense edits and deletes are denied.
+The rules are in `firestore.rules`. They allow a signed-in user to read their own membership record before joining, validate the invite code when creating membership, and allow access to group data only after membership is established. Expenses are readable and creatable by category members; a new expense is tied to the authenticated participant who paid it, and unsupported expense edits and deletes are denied.
 
 To publish the rules from a signed-in Firebase CLI session:
 
@@ -51,8 +53,8 @@ The live site will be available at [https://splitmate-8ce1a.web.app](https://spl
 After deployment, open the URL and create a category. Share its invite link with participants, then add an expense to confirm the live updates.
 
 ## Current MVP limitations
-- Expense split calculations assume an equal share among all group members; the current split selector is basic and should be treated as a prototype.
+- Each expense is split equally among the people selected for that expense. The default is everyone in the category.
+- Participant names are user-entered display names tied to anonymous browser accounts; they are not verified identities.
 - Settlement suggestions are calculated; no payments are processed.
 - Expense edit/delete and settlement confirmation are not implemented yet.
-- Display names are user-entered and are not verified identities.
 - This is an MVP, not a payment system or audited financial ledger.
