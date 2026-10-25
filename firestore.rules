@@ -126,10 +126,7 @@ service cloud.firestore {
           request.resource.data.inviteCode ==
             get(/databases/$(database)/documents/groups/$(groupId)).data.inviteCode;
 
-        allow update: if isMember(groupId) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['splitWith']) &&
-          isValidExpense(request.resource.data, groupId);
-        allow delete: if false;
+        allow update, delete: if false;
       }
 
       match /expenses/{expenseId} {
@@ -138,7 +135,10 @@ service cloud.firestore {
           request.resource.data.createdBy == request.auth.uid &&
           request.resource.data.paidBy == request.auth.uid &&
           isValidExpense(request.resource.data, groupId);
-        allow update, delete: if false;
+        allow update: if isMember(groupId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['splitWith']) &&
+          isValidExpense(request.resource.data, groupId);
+        allow delete: if false;
       }
     }
   }
