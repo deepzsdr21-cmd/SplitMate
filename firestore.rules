@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function groupExists(groupId) {
+      return exists(/databases/$(database)/documents/groups/$(groupId));
+    }
+    function isMember(groupId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
+    }
+    match /groups/{groupId} {
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 70
+        && request.resource.data.inviteCode is string;
+      // A group document can only be read after joining. Joining is checked
+      // against the invite code using the members rule below.
+      allow get: if isMember(groupId);
+      allow list: if false;
+      allow update, delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      match /members/{uid} {
+        allow create: if signedIn()
+          && request.auth.uid == uid
+          && groupExists(groupId)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 50
+          && request.resource.data.inviteCode == get(/databases/$(database)/documents/groups/$(groupId)).data.inviteCode;
+        allow get, list: if isMember(groupId);
+        allow update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.inviteCode == resource.data.inviteCode;
+        allow delete: if signedIn() && (request.auth.uid == uid ||
+          get(/databases/$(database)/documents/groups/$(groupId)).data.ownerUid == request.auth.uid);
+      }
+      match /expenses/{expenseId} {
+        allow get, list: if isMember(groupId);
+        allow create: if isMember(groupId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.paidBy is string
+          && request.resource.data.paidBy.size() > 0
+          && request.resource.data.paidBy.size() <= 50
+          && request.resource.data.description is string
+          && request.resource.data.description.size() > 0
+          && request.resource.data.description.size() <= 100
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.amount <= 100000000;
+        allow update, delete: if isMember(groupId) && resource.data.createdBy == request.auth.uid;
+      }
+    }
+  }
+}
