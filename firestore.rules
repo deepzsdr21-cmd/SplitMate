@@ -3,30 +3,29 @@
 // ===============================================================
 //
 // groups/{groupId}
-//   name: string (required, 1–70 chars)
-//   ownerUid: string (required, immutable; authenticated creator UID)
-//   inviteCode: string (required, 36 lowercase hex chars)
-//   createdAt: timestamp (required, server timestamp)
+//   name: string (1–70 chars)
+//   ownerUid: string (immutable creator UID)
+//   inviteCode: string (36 lowercase hex chars)
+//   memberUids: list<string> (up to 100; absent on legacy groups)
+//   createdAt: timestamp
 //
 // groups/{groupId}/members/{uid}
-//   uid: string (required; must match document ID and authenticated UID)
-//   name: string (required, 1–50 chars)
-//   joinedAt: timestamp (required, server timestamp)
-//   inviteCode: string (required; must match the parent group's invite code)
+//   uid: string matching document ID and authenticated UID
+//   name: string (1–50 chars)
+//   joinedAt: timestamp
+//   inviteCode: string matching the parent group
 //
 // groups/{groupId}/expenses/{expenseId}
-//   paidBy: string (required, 1–50 chars)
-//   amount: number (required, > 0 and <= 100,000,000)
-//   description: string (required, 1–100 chars)
-//   splitWith: string (required, "everyone" or a name up to 50 chars)
-//   createdBy: string (required, immutable; authenticated creator UID)
-//   createdAt: timestamp (required, server timestamp)
+//   paidBy: authenticated member UID
+//   amount: number (> 0 and <= 100,000,000)
+//   description: string (1–100 chars)
+//   splitWith: map keyed by member UID, with one entry per selected participant
+//   createdBy: authenticated UID
+//   createdAt: timestamp
 //
-// Group metadata and expense/member data are readable by group members.
-// A new member may read only their own membership document before joining;
-// its create rule validates the invite code before granting membership.
-// There are no global collection queries and no edit/delete UI for expenses.
-//
+// Existing categories may also contain the legacy ownerName field, and older
+// expenses may use string splitWith values. New writes use the schema above.
+// Reads require group membership (or creator access to group metadata).
 // ===============================================================
 
 rules_version = '2';
@@ -47,68 +46,76 @@ service cloud.firestore {
         get(/databases/$(database)/documents/groups/$(groupId)).data.ownerUid == request.auth.uid;
     }
 
-    function hasExactFields(data, fields) {
-      return data.keys().hasAll(fields) && data.keys().hasOnly(fields);
-    }
-
     function isValidGroup(data) {
-      return hasExactFields(data, ['name', 'ownerUid', 'inviteCode', 'createdAt']) &&
-        data.name is string &&
-        data.name.size() > 0 &&
-        data.name.size() <= 70 &&
+      return data.keys().hasAll(['name', 'ownerUid', 'inviteCode', 'createdAt']) &&
+        data.keys().hasOnly(['name', 'ownerUid', 'ownerName', 'inviteCode', 'memberUids', 'createdAt']) &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 70 &&
         data.ownerUid is string &&
-        data.inviteCode is string &&
-        data.inviteCode.matches('^[a-f0-9]{36}$') &&
-        data.createdAt is timestamp;
+        data.inviteCode is string && data.inviteCode.matches('^[a-f0-9]{36}$') &&
+        data.createdAt is timestamp &&
+        (!('ownerName' in data) ||
+          (data.ownerName is string && data.ownerName.size() > 0 && data.ownerName.size() <= 50)) &&
+        (!('memberUids' in data) ||
+          (data.memberUids is list && data.memberUids.size() <= 100));
     }
 
     function isValidMember(data, uid) {
-      return hasExactFields(data, ['uid', 'name', 'joinedAt', 'inviteCode']) &&
-        data.uid is string &&
-        data.uid == uid &&
-        data.name is string &&
-        data.name.size() > 0 &&
-        data.name.size() <= 50 &&
+      return data.keys().hasAll(['uid', 'name', 'joinedAt', 'inviteCode']) &&
+        data.keys().hasOnly(['uid', 'name', 'joinedAt', 'inviteCode']) &&
+        data.uid is string && data.uid == uid &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 50 &&
         data.joinedAt is timestamp &&
-        data.inviteCode is string &&
-        data.inviteCode.matches('^[a-f0-9]{36}$');
+        data.inviteCode is string && data.inviteCode.matches('^[a-f0-9]{36}$');
     }
 
-    function isValidExpense(data) {
-      return hasExactFields(data, ['paidBy', 'amount', 'description', 'splitWith', 'createdBy', 'createdAt']) &&
-        data.paidBy is string &&
-        data.paidBy.size() > 0 &&
-        data.paidBy.size() <= 50 &&
-        data.amount is number &&
-        data.amount > 0 &&
-        data.amount <= 100000000 &&
-        data.description is string &&
-        data.description.size() > 0 &&
-        data.description.size() <= 100 &&
-        data.splitWith is list &&
-        data.splitWith.size() > 0 &&
-        data.splitWith.size() <= 100 &&
-        data.createdBy is string &&
-        data.createdAt is timestamp;
+    function isValidExpense(data, groupId) {
+      return data.keys().hasAll(['paidBy', 'amount', 'description', 'splitWith', 'createdBy', 'createdAt']) &&
+        data.keys().hasOnly(['paidBy', 'amount', 'description', 'splitWith', 'createdBy', 'createdAt']) &&
+        data.paidBy is string && data.paidBy == request.auth.uid &&
+        data.amount is number && data.amount > 0 && data.amount <= 100000000 &&
+        data.description is string && data.description.size() > 0 && data.description.size() <= 100 &&
+        data.createdBy is string && data.createdAt is timestamp &&
+        data.splitWith is map &&
+        data.splitWith.keys().size() > 0 && data.splitWith.keys().size() <= 100 &&
+        data.splitWith.keys().hasOnly(
+          get(/databases/$(database)/documents/groups/$(groupId)).data.memberUids
+        );
+    }
+
+    function isJoining(groupId) {
+      return signedIn() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids']) &&
+        request.resource.data.memberUids is list &&
+        request.resource.data.memberUids.size() ==
+          (('memberUids' in resource.data) ? resource.data.memberUids.size() : 0) + 1 &&
+        (!('memberUids' in resource.data) ||
+          request.resource.data.memberUids.hasAll(resource.data.memberUids)) &&
+        request.resource.data.memberUids.hasAny([request.auth.uid]) &&
+        (!('memberUids' in resource.data) ||
+          !resource.data.memberUids.hasAny([request.auth.uid])) &&
+        getAfter(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.uid == request.auth.uid &&
+        getAfter(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.inviteCode == resource.data.inviteCode &&
+        isValidGroup(request.resource.data);
     }
 
     match /groups/{groupId} {
       allow create: if signedIn() &&
         request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.memberUids == [] &&
         isValidGroup(request.resource.data);
 
-      // Invite codes are confidential: members may read group data after joining, and the creator may read their own category.
       allow get: if isMember(groupId) || isGroupOwner(groupId);
       allow list: if false;
 
-      allow update: if isGroupOwner(groupId) &&
-        request.resource.data.ownerUid == resource.data.ownerUid &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']) &&
-        isValidGroup(request.resource.data);
+      allow update: if (
+          isGroupOwner(groupId) &&
+          request.resource.data.ownerUid == resource.data.ownerUid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']) &&
+          isValidGroup(request.resource.data)
+        ) || isJoining(groupId);
       allow delete: if false;
 
       match /members/{uid} {
-        // Read of one's own missing membership document is needed to attempt a join.
         allow get: if signedIn() && (request.auth.uid == uid || isMember(groupId));
         allow list: if isMember(groupId);
 
@@ -119,7 +126,6 @@ service cloud.firestore {
           request.resource.data.inviteCode ==
             get(/databases/$(database)/documents/groups/$(groupId)).data.inviteCode;
 
-        // Membership identity, invite code, and join timestamp are immutable.
         allow update, delete: if false;
       }
 
@@ -127,9 +133,7 @@ service cloud.firestore {
         allow get, list: if isMember(groupId);
         allow create: if isMember(groupId) &&
           request.resource.data.createdBy == request.auth.uid &&
-          request.resource.data.paidBy == request.auth.uid &&
-          isValidExpense(request.resource.data);
-        // The app has no expense edit or delete controls.
+          isValidExpense(request.resource.data, groupId);
         allow update, delete: if false;
       }
     }
