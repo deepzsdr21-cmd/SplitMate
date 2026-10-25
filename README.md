@@ -11,6 +11,7 @@ A mobile-friendly shared expense splitting website built with HTML, CSS, JavaScr
 - Expenses can be recorded under any participant's name, including a ₹0 entry to mark no spend; their expense status remains visible.
 - Participants record their own expenses; new expenses start split equally across everyone already joined.
 - Adjust the people sharing any expense later from its row in the Expenses tab, including participants who joined afterward and have spent nothing.
+- Show each participant's allocated share, how much they paid, and whether they owe or are owed.
 - Calculate who pays whom and how much from each expense's selected participants.
 - Category creators can permanently delete their category and its expenses and participant records.
 - Calculate who pays whom and how much from each expense's selected participants.
