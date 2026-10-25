@@ -31,7 +31,7 @@
 <div class="panel" id="joinPanel"><h2>Join this category</h2><p class="muted">Add your name so everyone can see who joined, including people who have not spent anything.</p><div class="field"><label for="participantName">Your name</label><input id="participantName" maxlength="50" placeholder="e.g. Aayan"></div><div class="actions"><button id="joinGroup">Join category</button></div></div><div id="memberPanels" class="hidden"><div class="panel"><h2>People in this category</h2><div id="participantList"></div></div><div class="panel"><h2>Add your expense</h2><p class="muted">Your name is attached automatically. New expenses start split equally with everyone currently joined. You can adjust each split in the Expenses tab, including adding people who join later.</p><div class="grid"><div class="field"><label for="expenseAmount">Amount (₹)</label><input id="expenseAmount" type="number" min="0.01" step="0.01" placeholder="800"></div><div class="field"><label for="expenseDescription">What was it for?</label><input id="expenseDescription" maxlength="100" placeholder="Food, cab, tickets…"></div></div><div class="actions"><button id="addExpense">Add expense</button></div></div>
 <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2 style="margin:0">Expenses</h2><button id="splitBill" class="secondary">Calculate split</button></div><div id="expenses"><p class="muted">Loading expenses…</p></div></div>
 <div class="panel"><h2>Who owes whom</h2><p class="muted" style="margin-top:-7px">Calculated from each expense and the people selected to share it.</p><div id="balances"><p class="muted">Add expenses to calculate balances.</p></div></div>
-<div class="panel"><h2>Invite people</h2><p class="muted">Share this link with everyone in the group. Anyone with the link can join this category.</p><div class="linkbox" id="inviteLink"></div><div class="actions"><button id="copyLink2" class="secondary">Copy link</button></div></div>
+<div class="panel"><h2>Invite people</h2><p class="muted">Share this link with everyone in the group. Anyone with the link can join this category.</p><input class="linkbox" id="inviteLink" type="text" readonly aria-label="Category invite link"><div class="actions"><button id="copyLink2" class="secondary">Copy link</button></div></div>
 </div></section>
 <div class="footer">SplitMate · Built for groups, trips and shared plans</div>
 </div>
@@ -59,7 +59,7 @@ async function openGroup(id,c){
   let gs=null;try{let s=await getDoc(doc(db,"groups",id));if(s.exists())gs=s.data()}catch{}
   $("joinPanel").classList.toggle("hidden",ms.exists());$("memberPanels").classList.toggle("hidden",!ms.exists());
   $("groupTitle").textContent=gs?.name||"Shared category";$("groupSubtitle").textContent=ms.exists()?"Shared live ledger":"Join to add your name and expenses";
-  $("inviteLink").textContent=link(id,currentInvite);$("participantName").value=localStorage.getItem("splitmate-name")||"";
+  $("inviteLink").value=link(id,currentInvite);$("participantName").value=localStorage.getItem("splitmate-name")||"";
   showGroup();history.replaceState(null,"",link(id,currentInvite));
   if(!ms.exists()){banner("Enter your name to join this category.");return}
   if(!gs)throw Error("Could not load the category.");
@@ -100,9 +100,9 @@ function makeSplitEditor(expense,currentIds,people){
  let help=document.createElement("p");help.className="muted";help.textContent="Choose everyone who shares this expense. People with no expenses can still be selected.";
  let choices=document.createElement("div");
  people.forEach(p=>{let label=document.createElement("label");label.className="split-choice";let input=document.createElement("input");input.type="checkbox";input.value=p.id;input.checked=currentIds.includes(p.id);let name=document.createTextNode(p.name+(expenses.some(e=>e.paidBy===p.id)?"":" (no expenses yet)"));label.append(input,name);choices.append(label)});
- let actions=document.createElement("div");actions.className="actions";let save=document.createElement("button");save.textContent="Save split";let cancel=document.createElement("button");cancel.className="secondary";cancel.textContent="Cancel";
+ let actions=document.createElement("div");actions.className="actions";let all=document.createElement("button");all.className="secondary";all.textContent="Select all";all.onclick=()=>choices.querySelectorAll("input[type=checkbox]").forEach(x=>x.checked=true);let save=document.createElement("button");save.textContent="Save split";let cancel=document.createElement("button");cancel.className="secondary";cancel.textContent="Cancel";
  save.onclick=async()=>{let selected=[...choices.querySelectorAll('input[type="checkbox"]:checked')].map(x=>x.value);if(!selected.length){banner("Choose at least one person to split this expense with.",true);return}try{await updateDoc(doc(db,"groups",currentGroup,"expenses",expense.id),{splitWith:Object.fromEntries(selected.map(id=>[id,true]))});banner("Expense split updated. Balances recalculated live.")}catch(e){banner("Could not update this split: "+e.message,true)}};
- cancel.onclick=()=>row.remove();actions.append(save,cancel);cell.append(help,choices,actions);row.append(cell);return row
+ cancel.onclick=()=>row.remove();actions.append(all,save,cancel);cell.append(help,choices,actions);row.append(cell);return row
 }
 function renderBalances(names){
  let root=$("balances");root.innerHTML="";let people=members.filter(m=>m.name);
@@ -117,7 +117,14 @@ function renderBalances(names){
 $("createGroup").onclick=async()=>{let n=$("newGroupName").value.trim();if(!n){banner("Enter a category name first.",true);return}try{let c=code(),r=await addDoc(collection(db,"groups"),{name:n.slice(0,70),ownerUid:user.uid,inviteCode:c,memberUids:[],createdAt:serverTimestamp()});await openGroup(r.id,c)}catch(e){banner("Could not create category: "+e.message,true)}};
 $("joinGroup").onclick=async()=>{let n=$("participantName").value.trim();if(!n){banner("Enter your name to join.",true);return}try{let batch=writeBatch(db);batch.set(doc(db,"groups",currentGroup,"members",user.uid),{uid:user.uid,name:n.slice(0,50),joinedAt:serverTimestamp(),inviteCode:currentInvite});batch.update(doc(db,"groups",currentGroup),{memberUids:arrayUnion(user.uid)});await batch.commit();localStorage.setItem("splitmate-name",n.slice(0,50));await openGroup(currentGroup,currentInvite)}catch(e){banner("Could not join category: "+e.message,true)}};
 $("addExpense").onclick=async()=>{let amount=Number($("expenseAmount").value),description=$("expenseDescription").value.trim(),split=members.map(m=>m.id);if(!description||!Number.isFinite(amount)||amount<=0){banner("Enter a description and an amount greater than zero.",true);return}if(!split.length){banner("No category members are available yet.",true);return}try{await addDoc(collection(db,"groups",currentGroup,"expenses"),{paidBy:user.uid,amount:Math.round(amount*100)/100,description:description.slice(0,100),splitWith:Object.fromEntries(split.map(id=>[id,true])),createdBy:user.uid,createdAt:serverTimestamp()});$("expenseAmount").value="";$("expenseDescription").value="";banner("Expense added. You can adjust its split from the Expenses list.")}catch(e){banner("Could not add expense: "+e.message,true)}};
-async function copyLink(){try{await navigator.clipboard.writeText(link(currentGroup,currentInvite));banner("Invite link copied.")}catch{banner("Copy this invite link: "+link(currentGroup,currentInvite),true)}}
+async function copyLink(){
+ const field=$("inviteLink");field.value=link(currentGroup,currentInvite);
+ try{await navigator.clipboard.writeText(field.value);banner("Invite link copied to clipboard.");return}catch{}
+ field.focus();field.select();field.setSelectionRange(0,field.value.length);
+ let copied=false;try{copied=document.execCommand("copy")}catch{}
+ if(copied)banner("Invite link copied to clipboard.");
+ else banner("The invite link is selected below. Copy it with Ctrl+C (or press and hold on mobile).",true)
+}
 $("shareGroup").onclick=copyLink;$("copyLink2").onclick=copyLink;$("backHome").onclick=()=>{if(unsubExpenses)unsubExpenses();if(unsubMembers)unsubMembers();currentGroup=null;$("groupView").classList.add("hidden");$("home").classList.remove("hidden");history.replaceState(null,"",location.pathname);renderRecent()};$("splitBill").onclick=()=>{renderBalances(Object.fromEntries(members.map(m=>[m.id,m.name])));$("balances").scrollIntoView({behavior:"smooth",block:"center"})};
 renderRecent();
 try{let app=initializeApp(firebaseConfig);auth=getAuth(app);db=getFirestore(app);onAuthStateChanged(auth,u=>{if(u){user=u;$("connection").textContent="Online · live sync";let p=new URLSearchParams(location.search),id=p.get("group");if(id)openGroup(id,p.get("invite"));else banner("Connected. Create a category or open an invite link.")}else signInAnonymously(auth).catch(e=>{ $("connection").textContent="Sign-in failed";banner("Firebase anonymous sign-in failed: "+e.message,true)})})}catch(e){$("connection").textContent="Configuration error";banner(e.message,true)}
