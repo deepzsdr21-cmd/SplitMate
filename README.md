@@ -60,5 +60,5 @@ After deployment, open the URL and create a category. Share its invite link with
 - Each expense is split equally among the people selected for that expense. New expenses default to everyone who has joined when they are added; adjust the selection in Expenses afterward.
 - Participant names are user-entered display names tied to anonymous browser accounts; they are not verified identities.
 - Settlement suggestions are calculated; no payments are processed.
-- Expense edit/delete and settlement confirmation are not implemented yet.
+- Any category member can edit an expense's payer, amount, description, or split; expense deletion and settlement confirmation are not implemented.
 - This is an MVP, not a payment system or audited financial ledger.
