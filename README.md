@@ -13,7 +13,7 @@ A mobile-friendly shared expense splitting website built with HTML, CSS, JavaScr
 
 The Firebase project for SplitMate is `splitmate-8ce1a`. It is on the Spark plan, with no billing account linked. The `SplitMate Web` app is registered, and its web SDK configuration is in `index.html`. Anonymous Authentication is enabled. Google Analytics and Gemini in Firebase are disabled.
 
-Cloud Firestore should use the Standard edition and its default database. Select the database location carefully: Firebase does not let you change it after creation. The project remains on the Spark plan; it will not upgrade automatically to paid billing.
+Cloud Firestore uses the Standard edition and default database in Mumbai (`asia-south1`). Firebase does not let you change the database location after creation. The project remains on the Spark plan; it will not upgrade automatically to paid billing.
 
 ### Firestore security rules
 
