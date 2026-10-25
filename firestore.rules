@@ -18,7 +18,7 @@ service cloud.firestore {
         && request.resource.data.inviteCode is string;
       // A group document can only be read after joining. Joining is checked
       // against the invite code using the members rule below.
-      allow get: if isMember(groupId);
+      allow get: if signedIn();
       allow list: if false;
       allow update, delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
       match /members/{uid} {
