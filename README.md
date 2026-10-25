@@ -33,6 +33,20 @@ Group invite links grant access to that group's shared ledger. Share them only w
 
 Cloud Firestore Standard includes a free daily quota of 50,000 reads, 20,000 writes, and 20,000 deletes, plus 1 GiB stored data and 10 GiB monthly outbound transfer. On Spark, exceeding a no-cost quota shuts that product off for the rest of the billing cycle rather than charging overage. Anonymous Authentication is available on Spark at no cost. See [Firebase pricing plans](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans) and [Cloud Firestore pricing](https://firebase.google.com/docs/firestore/pricing).
 
+## Deploy the website
+
+The Firebase backend is ready, but the site needs a public host before you can use it from a URL. Cloudflare Pages can deploy this static site on its Free plan.
+
+1. Sign in to the [Cloudflare dashboard](https://dash.cloudflare.com/).
+2. Open **Workers & Pages** → **Create application** → **Pages** → **Connect to Git**.
+3. Choose GitHub, authorize access to this repository, and select `deepzsdr21-cmd/SplitMate`.
+4. Set the production branch to `main`, leave the framework preset as **None**, leave the build command blank, and use the repository root as the build output directory.
+5. Select **Save and Deploy**. When the deployment succeeds, Cloudflare will show the site's `*.pages.dev` URL.
+
+Cloudflare Pages automatically deploys later changes pushed to `main`. Static asset requests are free and unlimited on the Free plan; Pages currently allows up to 500 builds per month. See [Cloudflare Pages Git integration](https://developers.cloudflare.com/pages/get-started/git-integration/) and [Pages limits](https://developers.cloudflare.com/pages/platform/limits/).
+
+After the first deploy, open the URL and create a category. Open its invite link in another browser and add an expense to confirm the live updates.
+
 ## Current MVP limitations
 - Expense split calculations assume an equal share among all group members; the current split selector is basic and should be treated as a prototype.
 - Settlement suggestions are calculated; no payments are processed.
