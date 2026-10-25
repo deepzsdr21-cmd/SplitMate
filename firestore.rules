@@ -22,7 +22,7 @@
 //
 // groups/{groupId}/expenses/{expenseId}
 //   paidBy: participant ID selected by a category member
-//   amount: number (> 0 and <= 100,000,000)
+//   amount: number (>= 0 and <= 100,000,000)
 //   description: string (1–100 chars)
 //   splitWith: map keyed by member UID, with one entry per selected participant; adjustable by any member
 //   createdBy: authenticated UID
@@ -94,7 +94,7 @@ service cloud.firestore {
       return data.keys().hasAll(['paidBy', 'amount', 'description', 'splitWith', 'createdBy', 'createdAt']) &&
         data.keys().hasOnly(['paidBy', 'amount', 'description', 'splitWith', 'createdBy', 'createdAt']) &&
         data.paidBy is string && data.paidBy.size() > 0 && data.paidBy.size() <= 128 &&
-        data.amount is number && data.amount > 0 && data.amount <= 100000000 &&
+        data.amount is number && data.amount >= 0 && data.amount <= 100000000 &&
         data.description is string && data.description.size() > 0 && data.description.size() <= 100 &&
         data.createdBy is string && data.createdAt is timestamp &&
         data.splitWith is map &&
