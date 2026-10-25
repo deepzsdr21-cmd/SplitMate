@@ -5,7 +5,6 @@
 // groups/{groupId}
 //   name: string (required, 1–70 chars)
 //   ownerUid: string (required, immutable; authenticated creator UID)
-//   ownerName: string (required, 1–50 chars)
 //   inviteCode: string (required, 36 lowercase hex chars)
 //   createdAt: timestamp (required, server timestamp)
 //
@@ -53,14 +52,11 @@ service cloud.firestore {
     }
 
     function isValidGroup(data) {
-      return hasExactFields(data, ['name', 'ownerUid', 'ownerName', 'inviteCode', 'createdAt']) &&
+      return hasExactFields(data, ['name', 'ownerUid', 'inviteCode', 'createdAt']) &&
         data.name is string &&
         data.name.size() > 0 &&
         data.name.size() <= 70 &&
         data.ownerUid is string &&
-        data.ownerName is string &&
-        data.ownerName.size() > 0 &&
-        data.ownerName.size() <= 50 &&
         data.inviteCode is string &&
         data.inviteCode.matches('^[a-f0-9]{36}$') &&
         data.createdAt is timestamp;
@@ -89,9 +85,9 @@ service cloud.firestore {
         data.description is string &&
         data.description.size() > 0 &&
         data.description.size() <= 100 &&
-        data.splitWith is string &&
+        data.splitWith is list &&
         data.splitWith.size() > 0 &&
-        data.splitWith.size() <= 50 &&
+        data.splitWith.size() <= 100 &&
         data.createdBy is string &&
         data.createdAt is timestamp;
     }
@@ -101,8 +97,8 @@ service cloud.firestore {
         request.resource.data.ownerUid == request.auth.uid &&
         isValidGroup(request.resource.data);
 
-      // Group data contains the invite code, so it is only readable after join.
-      allow get: if isMember(groupId);
+      // Invite codes are confidential: members may read group data after joining, and the creator may read their own category.
+      allow get: if isMember(groupId) || isGroupOwner(groupId);
       allow list: if false;
 
       allow update: if isGroupOwner(groupId) &&
@@ -131,6 +127,7 @@ service cloud.firestore {
         allow get, list: if isMember(groupId);
         allow create: if isMember(groupId) &&
           request.resource.data.createdBy == request.auth.uid &&
+          request.resource.data.paidBy == request.auth.uid &&
           isValidExpense(request.resource.data);
         // The app has no expense edit or delete controls.
         allow update, delete: if false;
