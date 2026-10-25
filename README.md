@@ -35,17 +35,20 @@ Cloud Firestore Standard includes a free daily quota of 50,000 reads, 20,000 wri
 
 ## Deploy the website
 
-The Firebase backend is ready, but the site needs a public host before you can use it from a URL. Cloudflare Pages can deploy this static site on its Free plan.
+The site is a static HTML app and can be hosted with Firebase Hosting on the existing Spark plan. Firebase Hosting includes up to 10 GB of stored site files and 10 GB of monthly data transfer at no cost. On Spark, exceeding a free quota disables Hosting until usage resets; the project will not be charged or upgraded automatically. See [Firebase Hosting quotas](https://firebase.google.com/docs/hosting/usage-quotas-pricing) and [Firebase pricing plans](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans).
 
-1. Sign in to the [Cloudflare dashboard](https://dash.cloudflare.com/).
-2. Open **Workers & Pages** → **Create application** → **Pages** → **Connect to Git**.
-3. Choose GitHub, authorize access to this repository, and select `deepzsdr21-cmd/SplitMate`.
-4. Set the production branch to `main`, leave the framework preset as **None**, leave the build command blank, and use the repository root as the build output directory.
-5. Select **Save and Deploy**. When the deployment succeeds, Cloudflare will show the site's `*.pages.dev` URL.
+The repository's `firebase.json` configures Hosting to serve the site from the repository root while excluding the Firebase rules and documentation. The `.firebaserc` file selects project `splitmate-8ce1a`.
 
-Cloudflare Pages automatically deploys later changes pushed to `main`. Static asset requests are free and unlimited on the Free plan; Pages currently allows up to 500 builds per month. See [Cloudflare Pages Git integration](https://developers.cloudflare.com/pages/get-started/git-integration/) and [Pages limits](https://developers.cloudflare.com/pages/platform/limits/).
+To deploy from a terminal with Firebase CLI installed and signed in:
 
-After the first deploy, open the URL and create a category. Open its invite link in another browser and add an expense to confirm the live updates.
+```sh
+npx -y firebase-tools@latest login
+npx -y firebase-tools@latest deploy --only hosting
+```
+
+The live site will be available at [https://splitmate-8ce1a.web.app](https://splitmate-8ce1a.web.app) after a successful deployment. Future deployments use the same command after pulling updates from `main`.
+
+After deployment, open the URL and create a category. Share its invite link with participants, then add an expense to confirm the live updates.
 
 ## Current MVP limitations
 - Expense split calculations assume an equal share among all group members; the current split selector is basic and should be treated as a prototype.
