@@ -39,7 +39,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, collection, doc, addDoc, setDoc, getDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-const firebaseConfig={apiKey:"AIzaSyCug_ftNzFLYXCz45brlpPoSszLjYh3rK",authDomain:"splitmate-8ce1a.firebaseapp.com",projectId:"splitmate-8ce1a",appId:"1:561509465775:web:a7660b79ff08e5641ede5a"};
+const firebaseConfig={apiKey:"AIzaSyCug_ftNzFLYXCz45brlpPoSszLjYh3rRk",authDomain:"splitmate-8ce1a.firebaseapp.com",projectId:"splitmate-8ce1a",appId:"1:561509465775:web:a7660b79ff08e5641ede5a"};
 const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:2}).format(n||0);
 let auth,db,user,currentGroup=null,currentInvite=null,expenses=[],members=[],unsubExpenses=null,unsubMembers=null;
 const recentKey="splitmate-recent-groups-v1";
