@@ -191,7 +191,7 @@ service cloud.firestore {
           request.resource.data.createdBy == request.auth.uid &&
           isValidExpense(request.resource.data, groupId);
         allow update: if isMember(groupId) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['splitWith']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['splitWith', 'paidBy', 'amount', 'description']) &&
           isValidExpense(request.resource.data, groupId);
         allow delete: if isGroupOwner(groupId);
       }
