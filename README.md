@@ -9,34 +9,29 @@ A mobile-friendly shared expense splitting website built with HTML, CSS, JavaScr
 - Record payer, description and amount in INR.
 - Calculate suggested transfers from expenses and group members.
 
-## Required setup before live use
+## Firebase backend
 
-### 1. Configure Firebase
-1. Open https://console.firebase.google.com/ and create a project.
-2. Register a Web app and copy its Firebase config.
-3. In `index.html`, replace the four placeholder values in `firebaseConfig` with the exact values from Firebase:
-   - `YOUR_FIREBASE_API_KEY` → `apiKey`
-   - `YOUR_FIREBASE_PROJECT` → the project name in `authDomain` (for example, `my-project.firebaseapp.com`)
-   - `YOUR_FIREBASE_PROJECT_ID` → `projectId`
-   - `YOUR_FIREBASE_APP_ID` → `appId`
-4. In Firebase Console → Build → Authentication → Sign-in method, enable **Anonymous**.
-5. In Firebase Console → Build → Firestore Database, create a database.
+The Firebase project for SplitMate is `splitmate-8ce1a`. It is on the Spark plan, with no billing account linked. The `SplitMate Web` app is registered, and its web SDK configuration is in `index.html`. Anonymous Authentication is enabled. Google Analytics and Gemini in Firebase are disabled.
 
-### 2. Publish Firestore security rules
-1. Open Firestore Database → Rules.
-2. Replace the rules with the full contents of `firestore.rules`.
-3. Click **Publish**.
+Cloud Firestore uses the Standard edition and default database in Mumbai (`asia-south1`). Firebase does not let you change the database location after creation. The project remains on the Spark plan; it will not upgrade automatically to paid billing.
 
-The app is intended for groups where anyone holding the invite link can join. Treat invite links as shareable access links. The group document contains the invite code; people who know a group's ID can read its metadata to validate joining. Do not store sensitive information in groups. Never commit service-account private keys or passwords.
+### Firestore security rules
 
-### 3. Deploy for free
-1. Sign in at https://dash.cloudflare.com/
-2. Open Workers & Pages → Create → Pages → Connect to Git.
-3. Connect GitHub and choose `SplitMate`.
-4. Framework preset: **None**. Leave the build command blank. Set the build output directory to `/` (the repository root, if accepted by the interface).
-5. Deploy. Cloudflare will provide a public `*.pages.dev` URL.
+The rules are in `firestore.rules`. They allow a signed-in user to read their own membership record before joining, validate the invite code when creating membership, and allow access to group data only after membership is established. Expenses are readable and creatable by members; unsupported expense edits and deletes are denied.
 
-After Firebase is configured and the site is deployed, open the URL and create a category to test it. Open its invite link in another browser/device to check shared updates.
+To publish the rules from a signed-in Firebase CLI session:
+
+```sh
+npx -y firebase-tools@latest deploy --only firestore:rules
+```
+
+The `.firebaserc` file selects `splitmate-8ce1a`, and `firebase.json` points the CLI to the repository rules.
+
+Group invite links grant access to that group's shared ledger. Share them only with intended participants, and do not store sensitive information in groups. Never commit service-account private keys or passwords. The web API key in `index.html` is a public Firebase client identifier; authorization is enforced by Firebase Authentication and Firestore rules.
+
+### Free-plan usage
+
+Cloud Firestore Standard includes a free daily quota of 50,000 reads, 20,000 writes, and 20,000 deletes, plus 1 GiB stored data and 10 GiB monthly outbound transfer. On Spark, exceeding a no-cost quota shuts that product off for the rest of the billing cycle rather than charging overage. Anonymous Authentication is available on Spark at no cost. See [Firebase pricing plans](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans) and [Cloud Firestore pricing](https://firebase.google.com/docs/firestore/pricing).
 
 ## Current MVP limitations
 - Expense split calculations assume an equal share among all group members; the current split selector is basic and should be treated as a prototype.
